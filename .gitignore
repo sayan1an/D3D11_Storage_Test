@@ -1,0 +1,35 @@
+# Build directories
+build/
+out/
+bin/
+obj/
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.VC.opendb
+
+# Executables
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Object files
+*.o
+*.obj
+*.a
+*.lib
+
+# Debug files
+*.pdb
+*.idb
+*.ilk
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake 

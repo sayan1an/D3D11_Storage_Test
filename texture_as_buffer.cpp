@@ -194,6 +194,17 @@ void* Texture_As_Buffer::to_cpu(ID3D11DeviceContext* context)
         delete[] init_data;
     }
 
+    void Texture_As_Buffer::to_gpu(ID3D11DeviceContext* context, unsigned int clear_val)
+    {
+        // Prepare the initialization data
+        unsigned int *init_data = new unsigned int[(channels * height * width * element_size + 3) / 4];
+        for (int i = 0; i < (channels * height * width * element_size + 3) / 4; i++)
+            init_data[i] = clear_val;
+
+        to_gpu(context, init_data);
+        delete[] init_data;
+    }
+
     void Texture_As_Buffer::release()
     {   
         if (p_texture_uav)

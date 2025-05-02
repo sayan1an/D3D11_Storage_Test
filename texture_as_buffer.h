@@ -16,6 +16,7 @@ struct Texture_As_Buffer
     void init_staging(ID3D11Device* device);
     void* to_cpu(ID3D11DeviceContext* context);
     void to_gpu(ID3D11DeviceContext* context, unsigned char clear_val);
+    void to_gpu(ID3D11DeviceContext* context, unsigned int clear_val);
     void to_gpu(ID3D11DeviceContext* context, void *data);
     void release();
 

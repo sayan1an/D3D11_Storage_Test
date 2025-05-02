@@ -1,20 +1,22 @@
-// ArraySum.hlsl
-// Compute shader that demonstrates using the same buffer for both input and output
+Texture2DArray<float> input_0 : register(t0);
+Texture2DArray<float> input_1 : register(t1);
 
-// Input buffer (read-only view)
-StructuredBuffer<float> Input : register(t0);
+RWTexture2DArray<float> output : register(u0);
 
-// Output buffer (read-write view of the same buffer)
-RWStructuredBuffer<float> Output : register(u0);
-
-[numthreads(THREAD_GROUP_SIZE_X, THREAD_GROUP_SIZE_Y, THREAD_GROUP_SIZE_Z)]
+[numthreads(THREAD_GROUP_SIZE_X, THREAD_GROUP_SIZE_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
-    // Get the current index
-    uint idx = DTid.x;
+    int w_idx = DTid.x;
+    int h_idx = DTid.y;
     
-    // Read from the input view and write to the output view
-    // This demonstrates that we can read and write to the same buffer
-    // through different views
-    Output[idx] = Input[idx] + Input[idx];
+    int width, height, channels;
+    input_0.GetDimensions(width, height, channels);
+
+    if (w_idx >= width || h_idx >= height)
+        return;
+
+    for (int c_idx = 0; c_idx < channels; c_idx++) {
+        int3 idx = int3(w_idx, h_idx, c_idx);
+        output[idx] = input_0[idx] + input_1[idx] + THREAD_GROUP_SIZE_X + THREAD_GROUP_SIZE_Y;
+    }
 } 

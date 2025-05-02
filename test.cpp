@@ -901,27 +901,88 @@ void run_read_test(ID3D11Device* device, ID3D11DeviceContext* context)
 class Shader_Compile_Tester
 {
 public:
-    void init(ID3D11Device* device) {
-        D3D_SHADER_MACRO defines[4] = {{ "THREAD_GROUP_SIZE_X", std::to_string(tid_x).c_str() }, { "THREAD_GROUP_SIZE_Y", std::to_string(tid_y).c_str() }, { "THREAD_GROUP_SIZE_Z", std::to_string(tid_z).c_str() }, { nullptr, nullptr }};
+    void init(ID3D11Device* device, ID3D11DeviceContext* context) 
+    {   
+        D3D_SHADER_MACRO defines[4] = {{ "THREAD_GROUP_SIZE_X", p_block_dim_x }, { "THREAD_GROUP_SIZE_Y", p_block_dim_y }, { nullptr, nullptr }};
         m_compute_shader.init_from_file(device, "shaders/array_sum.hlsl", "main", defines);
+
+        m_tab_in0.init(device, 2, 200, 300, DXGI_FORMAT_R32_FLOAT); m_tab_in0.init_staging(device);
+        m_tab_in1.init(device, 2, 200, 300, DXGI_FORMAT_R32_FLOAT); m_tab_in1.init_staging(device);
+        m_tab_out.init(device, 2, 200, 300, DXGI_FORMAT_R32_FLOAT); m_tab_out.init_staging(device);
+        
+        cast_float_to_int f2i;
+        f2i.f = 1.0f;
+        m_tab_in0.to_gpu(context, f2i.i);
+        f2i.f = 2.0f;
+        m_tab_in1.to_gpu(context, f2i.i);
+        m_tab_out.to_gpu(context, (unsigned char) 0);
+    }    
+
+    void execute(ID3D11DeviceContext* context) 
+    {
+        context->CSSetShader(m_compute_shader.shader, nullptr, 0);
+        context->CSSetShaderResources(0, 1, &m_tab_in0.p_texture_srv);   
+        context->CSSetShaderResources(1, 1, &m_tab_in1.p_texture_srv);
+        context->CSSetUnorderedAccessViews(0, 1, &m_tab_out.p_texture_uav, nullptr);
+
+        UINT dispatchX = ((UINT)m_tab_out.width + block_dim_x - 1) / block_dim_x;
+        UINT dispatchY = ((UINT)m_tab_out.height + block_dim_y - 1) / block_dim_y;
+        context->Dispatch(dispatchX, dispatchY, 1);
+
+        ID3D11UnorderedAccessView* nullUAV[1] = { nullptr };
+        context->CSSetUnorderedAccessViews(0, 1, nullUAV, nullptr);
     }
-    //void test(ID3D11DeviceContext* context);
-    void release() {
+
+    void test(ID3D11DeviceContext* context)
+    {
+        execute(context);
+        void *data = m_tab_out.to_cpu(context);
+        float *data_float = (float *)data;
+        float error = 0;
+        for (UINT c_idx = 0; c_idx < m_tab_out.channels; c_idx++)
+            for (UINT h_idx = 0; h_idx < m_tab_out.height; h_idx++)
+                for (UINT w_idx = 0; w_idx < m_tab_out.width; w_idx++) {
+                    float expected = 3 + (float)block_dim_x + (float)block_dim_y;
+                    float input = data_float[m_tab_out.width * m_tab_out.height * c_idx + m_tab_out.width * h_idx + w_idx];
+                    error += abs(input - expected);
+                }
+        if (error == 0.0f)
+            std::cout << "Shader compile test passed!" << std::endl;
+        else
+            std::cout << "Shader compile test failed! Error: " << error << std::endl;
+    }
+
+    void release() 
+    {
+        m_tab_in0.release();
+        m_tab_in1.release();
+        m_tab_out.release();
         m_compute_shader.release();
     }
 
 private:
     D3D11_Compute_Shader m_compute_shader;
-    const UINT tid_x = 16;
-    const UINT tid_y = 1;
-    const UINT tid_z = 1;
+    Texture_As_Buffer m_tab_in0;
+    Texture_As_Buffer m_tab_in1;
+    Texture_As_Buffer m_tab_out;
+    const char* p_block_dim_x = "9";
+    const char* p_block_dim_y = "7";
+    
+    const UINT block_dim_x = atoi(p_block_dim_x);
+    const UINT block_dim_y = atoi(p_block_dim_y);
+
+    union cast_float_to_int
+    {
+        float f;
+        unsigned int i;
+    };
 };
 
 void run_shader_compile_test(ID3D11Device* device, ID3D11DeviceContext* context)
 {
     std::cerr << "Running shader compile test..." << std::endl;
     Shader_Compile_Tester tester;
-    tester.init(device);
-    //tester.test(context);
+    tester.init(device, context);
+    tester.test(context);
     tester.release();
 }

@@ -1,6 +1,6 @@
 # D3D11 Storage Test
 
-This project demonstrates the use of D3D11 compute shaders for array operations. It creates a buffer, performs a compute operation on it, and verifies the results.
+This project demonstrates the use of D3D11 compute shaders for texture-array operations. It creates various types of texture-arrays, performs a compute operation on it, and verifies the results by bi-directionally transferring data between host and device.
 
 ## Prerequisites
 
@@ -44,17 +44,11 @@ The program can be run with an optional device index parameter to select which G
 When run without arguments, it will:
 1. List all available graphics devices
 2. Use the first device (index 0) by default
-3. Execute a compute shader that doubles each value in an array
+3. Execute compute shaders and perform complex operations, fetching and writing values to and from texture-arrays
 4. Verify the results
-
-## Project Structure
-
-- `main.cpp` - Main application code
-- `ArraySum.hlsl` - Compute shader source
-- `Common.h` - Common definitions and constants
 
 ## Notes
 
-- The shader file `ArraySum.hlsl` is automatically copied to the build directory during the build process
+- The file in 'shaders' directory is automatically copied to the build directory during the build process
 - The program requires a DirectX 11 compatible graphics card with compute shader support
 - The compute shader is compiled at runtime using the D3DCompiler 

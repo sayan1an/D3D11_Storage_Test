@@ -1,5 +1,4 @@
 #include "texture_as_buffer.h"
-#include "d3d11_helper.h"
 #include <iostream>
 
 void Texture_As_Buffer::init(ID3D11Device* device, size_t __channels, size_t __height, size_t __width, DXGI_FORMAT format)

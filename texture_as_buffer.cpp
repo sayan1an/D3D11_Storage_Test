@@ -17,6 +17,9 @@ void Texture_As_Buffer::init(ID3D11Device* device, size_t __channels, size_t __h
             case DXGI_FORMAT_R8_UNORM:
                 element_size = 1;
                 break;
+            case DXGI_FORMAT_R8G8B8A8_UNORM:
+                element_size = 4;
+                break;
             case DXGI_FORMAT_R10G10B10A2_UNORM:
                 element_size = 4;
                 break;

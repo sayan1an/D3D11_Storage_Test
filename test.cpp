@@ -46,6 +46,32 @@ public:
             }
         )";
 
+        const char* shader_code_r8g8b8a8_unorm = R"(
+            RWTexture2DArray<unorm float4> out_texture : register(u0);
+
+            [numthreads(16, 16, 1)]
+            void test_main(uint3 DTid : SV_DispatchThreadID)
+            {
+                int w_idx = DTid.x;
+                int h_idx = DTid.y;
+
+                int width;
+                int height;
+                int channels;
+
+                out_texture.GetDimensions(width, height, channels);
+            
+                if (w_idx >= width || h_idx >= height)
+                    return;
+                
+                for (int c = 0; c < channels; c++) {
+                    uint index = (c * height * width + h_idx * width + w_idx) % 252;
+                    int3 out_idx = int3(w_idx, h_idx, c);
+                    out_texture[out_idx] = float4(index / 254.9445f, (index + 1) / 254.9445f, (index + 2) / 254.9445f, (index + 3) / 254.9445f);
+                }
+            }
+        )";
+
         const char* shader_code_r32_float = R"(
             RWTexture2DArray<float> out_texture : register(u0);
 
@@ -158,6 +184,9 @@ public:
             case DXGI_FORMAT_R8_UNORM:
                 m_compute_shader.init_from_code_string(device, shader_code_r8_unorm, "test_main");
                 break;
+            case DXGI_FORMAT_R8G8B8A8_UNORM:
+                m_compute_shader.init_from_code_string(device, shader_code_r8g8b8a8_unorm, "test_main");
+                break;
             case DXGI_FORMAT_R16_FLOAT:
                 m_compute_shader.init_from_code_string(device, shader_code_r16_float, "test_main");
                 break;
@@ -199,6 +228,9 @@ public:
             break;
         case DXGI_FORMAT_R8_UNORM:
             test_r8_unorm(data);
+            break;
+        case DXGI_FORMAT_R8G8B8A8_UNORM:
+            test_r8g8b8a8_unorm(data);
             break;
         case DXGI_FORMAT_R16_FLOAT:
             test_r16_float(data);
@@ -244,6 +276,30 @@ private:
             std::cout << "Test R8_UNORM passed!" << std::endl;
         else
             std::cout << "Test R8_UNORM failed! Error: " << error << std::endl;
+    }
+
+    void test_r8g8b8a8_unorm(const void* data)
+    {   
+        float error = 0;
+        for (UINT c_idx = 0; c_idx < m_tab.channels; c_idx++)
+            for (UINT h_idx = 0; h_idx < m_tab.height; h_idx++)
+                for (UINT w_idx = 0; w_idx < m_tab.width; w_idx++) {
+                    unsigned int input_rpr = ((unsigned int*)data)[m_tab.width * m_tab.height * c_idx + m_tab.width * h_idx + w_idx];
+                    unsigned int expected = (c_idx * m_tab.height * m_tab.width + h_idx * m_tab.width + w_idx) % 252;
+                    unsigned int input_0 = input_rpr & 0xff;
+                    unsigned int input_1 = (input_rpr >> 8) & 0xff;
+                    unsigned int input_2 = (input_rpr >> 16) & 0xff;
+                    unsigned int input_3 = (input_rpr >> 24) & 0xff;
+                    error += abs((int)input_0 - (int)expected);
+                    error += abs((int)input_1 - (int)(expected + 1));
+                    error += abs((int)input_2 - (int)(expected + 2));
+                    error += abs((int)input_3 - (int)(expected + 3));
+                }
+
+        if (error == 0.0f)
+            std::cout << "Test R8G8B8A8_UNORM passed!" << std::endl;
+        else
+            std::cout << "Test R8G8B8A8_UNORM failed! Error: " << error << std::endl;
     }
 
     void test_r32_float(const void* data)
@@ -349,6 +405,11 @@ void run_write_test(ID3D11Device* device, ID3D11DeviceContext* context)
     tester.test(context);
     tester.release();
 
+    tester.init(device, DXGI_FORMAT_R8G8B8A8_UNORM);
+    tester.execute(context);
+    tester.test(context);
+    tester.release();
+
     tester.init(device, DXGI_FORMAT_R32_FLOAT);
     tester.execute(context);
     tester.test(context);
@@ -420,6 +481,42 @@ public:
             }
         }
         )";
+
+        const char* shader_code_r8g8b8a8_unorm = R"(
+            Texture2DArray<unorm float4> in_texture : register(t0);
+            RWTexture2DArray<float> out_texture : register(u0);
+    
+            [numthreads(16, 16, 1)]
+            void test_main(uint3 DTid : SV_DispatchThreadID)
+            {
+                int w_idx = DTid.x;
+                int h_idx = DTid.y;
+    
+                int width;
+                int height;
+                int channels;
+    
+                out_texture.GetDimensions(width, height, channels);
+            
+                if (w_idx >= width || h_idx >= height)
+                    return;
+                
+                int h_idx_in = (h_idx + w_idx ^ h_idx) % height;
+                int w_idx_in = (w_idx + w_idx ^ h_idx) % width;
+                int h_idx_in_n = (h_idx + w_idx ^ h_idx + 1) % height;
+                int w_idx_in_n = (w_idx + w_idx ^ h_idx + 1) % width;
+    
+                for (int c = 0; c < channels; c++) {
+                    int3 out_idx = int3(w_idx, h_idx, c);
+                    float4 input_0 = in_texture[int3(w_idx_in, h_idx_in, c)];
+                    float4 input_1 = in_texture[int3(w_idx_in_n, h_idx_in, c)];
+                    float4 input_2 = in_texture[int3(w_idx_in, h_idx_in_n, c)];
+                    float4 input_3 = in_texture[int3(w_idx_in_n, h_idx_in_n, c)];
+                    float4 input = input_0 + input_1 + input_2 + input_3;
+                    out_texture[out_idx] = input.r + input.g + input.b + input.a;
+                }
+            }
+            )";
 
         const char* shader_code_r32_float = R"(
         Texture2DArray<float> in_texture : register(t0);
@@ -571,6 +668,9 @@ public:
             case DXGI_FORMAT_R8_UNORM:
                 m_compute_shader.init_from_code_string(device, shader_code_r8_unorm, "test_main");
                 break;
+            case DXGI_FORMAT_R8G8B8A8_UNORM:
+                m_compute_shader.init_from_code_string(device, shader_code_r8g8b8a8_unorm, "test_main");
+                break;
             case DXGI_FORMAT_R16_FLOAT:
                 m_compute_shader.init_from_code_string(device, shader_code_r16_float, "test_main");
                 break;
@@ -596,6 +696,9 @@ public:
                 break;
             case DXGI_FORMAT_R8_UNORM:
                 test_r8_unorm(context);
+                break;
+            case DXGI_FORMAT_R8G8B8A8_UNORM:
+                test_r8g8b8a8_unorm(context);
                 break;
             case DXGI_FORMAT_R16_FLOAT:
                 test_r16_float(context);
@@ -626,6 +729,26 @@ private:
     unsigned int m_width = 0;
     unsigned int m_height = 0;
     DXGI_FORMAT m_test_fmt;
+
+    struct F2
+    {
+        float r;
+        float g;
+    };
+
+    struct H2
+    {
+        UINT16 r;
+        UINT16 g;
+    };
+
+    struct F4
+    {
+        float r;
+        float g;
+        float b;
+        float a;
+    };
 
     void execute(ID3D11DeviceContext* context)
     {
@@ -722,6 +845,56 @@ private:
          delete[] ((unsigned char*)ref_data);
     }
 
+    F4 rgba8_to_float4(UINT u)
+    {
+        return F4{
+            (float)(u >> 0 & 0xff) / 255.0f,
+            (float)(u >> 8 & 0xff) / 255.0f,
+            (float)(u >> 16 & 0xff) / 255.0f,
+            (float)(u >> 24) / 255.0f};
+    }
+
+    void test_r8g8b8a8_unorm(ID3D11DeviceContext* context)
+    {   
+        unsigned char *ref_data = new unsigned char[m_tab_in.width * m_tab_in.height * m_tab_in.channels * m_tab_in.element_size];
+        for (UINT c_idx = 0; c_idx < m_tab_in.channels; c_idx++)
+            for (UINT h_idx = 0; h_idx < m_tab_in.height; h_idx++)
+                for (UINT w_idx = 0; w_idx < m_tab_in.width; w_idx++) {
+                    unsigned int input = (c_idx ^ h_idx ^ w_idx) % 252;
+                    ((unsigned int *)ref_data)[m_tab_in.width * m_tab_in.height * c_idx + m_tab_in.width * h_idx + w_idx] = input | ((input + 1) << 8) | ((input + 2) << 16) | ((input + 3) << 24);
+                }
+                
+
+        m_tab_in.to_gpu(context, ref_data);
+        execute(context);
+        void *data = m_tab_out.to_cpu(context);
+        float error = 0;
+        for (UINT c_idx = 0; c_idx < m_tab_in.channels; c_idx++)
+            for (UINT h_idx = 0; h_idx < m_tab_in.height; h_idx++)
+                for (UINT w_idx = 0; w_idx < m_tab_in.width; w_idx++) {
+                    UINT h_idx_in = (h_idx + w_idx ^ h_idx) % m_tab_in.height;
+                    UINT w_idx_in = (w_idx + w_idx ^ h_idx) % m_tab_in.width;
+                    UINT h_idx_in_n = (h_idx + w_idx ^ h_idx + 1) % m_tab_in.height;
+                    UINT w_idx_in_n = (w_idx + w_idx ^ h_idx + 1) % m_tab_in.width;
+                    F4 expected_0 =  rgba8_to_float4(((unsigned int *)ref_data)[m_tab_in.width * m_tab_in.height * c_idx + m_tab_in.width * h_idx_in + w_idx_in]);
+                    F4 expected_1 = rgba8_to_float4(((unsigned int *)ref_data)[m_tab_in.width * m_tab_in.height * c_idx + m_tab_in.width * h_idx_in + w_idx_in_n]);
+                    F4 expected_2 = rgba8_to_float4(((unsigned int *)ref_data)[m_tab_in.width * m_tab_in.height * c_idx + m_tab_in.width * h_idx_in_n + w_idx_in]);
+                    F4 expected_3 = rgba8_to_float4(((unsigned int *)ref_data)[m_tab_in.width * m_tab_in.height * c_idx + m_tab_in.width * h_idx_in_n + w_idx_in_n]);
+                    float input = ((float *)data)[m_tab_in.width * m_tab_in.height * c_idx + m_tab_in.width * h_idx + w_idx];
+                    error += abs(input - ((expected_0.r + expected_1.r + expected_2.r + expected_3.r) + (expected_0.g + expected_1.g + expected_2.g + expected_3.g) + (expected_0.b + expected_1.b + expected_2.b + expected_3.b) + (expected_0.a + expected_1.a + expected_2.a + expected_3.a)));
+                }
+
+        error /= (m_tab_in.channels * m_tab_in.height * m_tab_in.width);
+
+        if (error < 1e-5f)
+            std::cout << "Test R8G8B8A8_UNORM passed!" << std::endl;
+        else
+            std::cout << "Test R8G8B8A8_UNORM failed! Error: " << error << std::endl;
+
+         delete[] ((unsigned char*)ref_data);
+    }
+
+
     void test_r16_float(ID3D11DeviceContext* context)
     {   
         unsigned char *ref_data = new unsigned char[m_tab_in.width * m_tab_in.height * m_tab_in.channels * m_tab_in.element_size];
@@ -759,18 +932,6 @@ private:
 
          delete[] ((unsigned char*)ref_data);
     }
-
-    struct F2
-    {
-        float r;
-        float g;
-    };
-
-    struct H2
-    {
-        UINT16 r;
-        UINT16 g;
-    };
 
     F2 half2_to_float2(H2 h2)
     {
@@ -817,15 +978,7 @@ private:
 
          delete[] ((unsigned char*)ref_data);
     }
-
-    struct F4
-    {
-        float r;
-        float g;
-        float b;
-        float a;
-    };
-
+    
     F4 rgb10a2_to_float4(UINT u)
     {
         return F4{
@@ -882,6 +1035,10 @@ void run_read_test(ID3D11Device* device, ID3D11DeviceContext* context)
     tester.release();
 
     tester.init(device, DXGI_FORMAT_R8_UNORM);
+    tester.test(context);
+    tester.release();
+
+    tester.init(device, DXGI_FORMAT_R8G8B8A8_UNORM);
     tester.test(context);
     tester.release();
 

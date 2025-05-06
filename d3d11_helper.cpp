@@ -149,3 +149,47 @@ void D3D11_Compute_Shader::release()
     if (shader) shader->Release();
     shader = nullptr;
 }
+
+void D3D11_Constant_Buffer::init(ID3D11Device* device, size_t bytes)
+{
+    if (bytes % 16 != 0) {
+        std::cerr << "Constant buffer size must be a multiple of 16." << std::endl;
+        p_buffer = nullptr;
+        return;
+    }
+
+    blob_size = bytes;
+    
+    D3D11_BUFFER_DESC desc;
+    desc.Usage = D3D11_USAGE_DYNAMIC;
+    desc.ByteWidth = (UINT)bytes;
+    desc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    desc.MiscFlags = 0;
+    
+    if (FAILED(device->CreateBuffer(&desc, nullptr, &p_buffer))) {
+        std::cerr << "Failed to create constant buffer." << std::endl;
+        p_buffer = nullptr;
+        return;
+    }
+}
+
+void D3D11_Constant_Buffer::to_gpu(ID3D11DeviceContext* context, const void* data)
+{
+    D3D11_MAPPED_SUBRESOURCE mapped_resource;
+    if (FAILED(context->Map(p_buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped_resource))) {
+        std::cerr << "Failed to map constant buffer." << std::endl;
+        return;
+    }
+    memcpy(mapped_resource.pData, data, blob_size);
+    context->Unmap(p_buffer, 0);
+}
+
+void D3D11_Constant_Buffer::release()
+{
+    if (p_buffer) p_buffer->Release();
+    p_buffer = nullptr;
+}
+
+
+

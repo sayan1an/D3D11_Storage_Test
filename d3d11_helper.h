@@ -26,3 +26,15 @@ struct D3D11_Compute_Shader {
 private:
     bool debug_mode = false; // Sets flag D3DCOMPILE_DEBUG and D3DCOMPILE_SKIP_OPTIMIZATION if true
 };
+
+struct D3D11_Constant_Buffer {
+    ID3D11Buffer* p_buffer = nullptr;
+    void init(ID3D11Device* device, size_t bytes);
+    void to_gpu(ID3D11DeviceContext* context, const void *data);
+    void release();
+    ~D3D11_Constant_Buffer() {
+        release();
+    }
+private:
+    size_t blob_size;
+};

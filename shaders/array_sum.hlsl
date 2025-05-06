@@ -1,3 +1,11 @@
+cbuffer Constant_Buffer : register(b0)
+{
+    unsigned int time_index;
+    int height;
+    int width;
+    int align_padding;
+};
+
 Texture2DArray<float> input_0 : register(t0);
 Texture2DArray<float> input_1 : register(t1);
 
@@ -17,6 +25,6 @@ void main(uint3 DTid : SV_DispatchThreadID)
 
     for (int c_idx = 0; c_idx < channels; c_idx++) {
         int3 idx = int3(w_idx, h_idx, c_idx);
-        output[idx] = input_0[idx] + input_1[idx] + THREAD_GROUP_SIZE_X + THREAD_GROUP_SIZE_Y;
+        output[idx] = input_0[idx] + input_1[idx] + THREAD_GROUP_SIZE_X + THREAD_GROUP_SIZE_Y + time_index + height + width;
     }
 } 

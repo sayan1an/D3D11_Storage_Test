@@ -1073,11 +1073,20 @@ public:
         f2i.f = 2.0f;
         m_tab_in1.to_gpu(context, f2i.i);
         m_tab_out.to_gpu(context, (unsigned char) 0);
-    }    
+
+        m_constant_buffer.init(device, sizeof(Constant_Buffer));
+    }
 
     void execute(ID3D11DeviceContext* context) 
-    {
+    {   
+        constant_buffer.time_index = 2;
+        constant_buffer.height = 200;
+        constant_buffer.width = 300;
+        constant_buffer.align_padding = 0;
+        m_constant_buffer.to_gpu(context, &constant_buffer);
+
         context->CSSetShader(m_compute_shader.shader, nullptr, 0);
+        context->CSSetConstantBuffers(0, 1, &m_constant_buffer.p_buffer);
         context->CSSetShaderResources(0, 1, &m_tab_in0.p_texture_srv);   
         context->CSSetShaderResources(1, 1, &m_tab_in1.p_texture_srv);
         context->CSSetUnorderedAccessViews(0, 1, &m_tab_out.p_texture_uav, nullptr);
@@ -1099,7 +1108,7 @@ public:
         for (UINT c_idx = 0; c_idx < m_tab_out.channels; c_idx++)
             for (UINT h_idx = 0; h_idx < m_tab_out.height; h_idx++)
                 for (UINT w_idx = 0; w_idx < m_tab_out.width; w_idx++) {
-                    float expected = 3 + (float)block_dim_x + (float)block_dim_y;
+                    float expected = 3 + (float)block_dim_x + (float)block_dim_y + 2 + 200 + 300;
                     float input = data_float[m_tab_out.width * m_tab_out.height * c_idx + m_tab_out.width * h_idx + w_idx];
                     error += abs(input - expected);
                 }
@@ -1114,11 +1123,13 @@ public:
         m_tab_in0.release();
         m_tab_in1.release();
         m_tab_out.release();
+        m_constant_buffer.release();
         m_compute_shader.release();
     }
 
 private:
     D3D11_Compute_Shader m_compute_shader;
+    D3D11_Constant_Buffer m_constant_buffer;
     Texture_As_Buffer m_tab_in0;
     Texture_As_Buffer m_tab_in1;
     Texture_As_Buffer m_tab_out;
@@ -1133,6 +1144,14 @@ private:
         float f;
         unsigned int i;
     };
+
+    struct Constant_Buffer
+    {
+        unsigned int time_index;
+        int height;
+        int width;
+        int align_padding;
+    } constant_buffer;
 };
 
 void run_shader_compile_test(ID3D11Device* device, ID3D11DeviceContext* context)

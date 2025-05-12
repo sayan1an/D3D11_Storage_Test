@@ -191,5 +191,99 @@ void D3D11_Constant_Buffer::release()
     p_buffer = nullptr;
 }
 
+void D3D11_Performance_Counter::init(ID3D11Device* device)
+{
+    D3D11_QUERY_DESC query_desc = {};
+    query_desc.Query = D3D11_QUERY_TIMESTAMP;
+        
+    if (FAILED(device->CreateQuery(&query_desc, &p_start_query))) {
+        std::cerr << "Failed to create start query." << std::endl;
+        p_start_query = nullptr;
+        p_end_query = nullptr;
+        p_disjoint_query = nullptr;
+        return;
+    }
+    if (FAILED(device->CreateQuery(&query_desc, &p_end_query))) {
+        std::cerr << "Failed to create end query." << std::endl;
+        p_start_query = nullptr;
+        p_end_query = nullptr;
+        p_disjoint_query = nullptr;
+        return;
+    }
+
+    // Create disjoint query to check if timestamps are valid
+    D3D11_QUERY_DESC disjoint_desc = {};
+    disjoint_desc.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
+    if (FAILED(device->CreateQuery(&disjoint_desc, &p_disjoint_query))) {
+        std::cerr << "Failed to create disjoint query." << std::endl;
+        p_start_query = nullptr;
+        p_end_query = nullptr;
+        p_disjoint_query = nullptr;
+        return;
+    }
+}
+
+void D3D11_Performance_Counter::counter_start(ID3D11DeviceContext* context)
+{   
+    if (p_start_query == nullptr || p_end_query == nullptr || p_disjoint_query == nullptr) {
+        std::cerr << "Performance counter not initialized, run init() first." << std::endl;
+        return;
+    }
+
+    if (performance_counter_initialized) {
+        std::cerr << "Performance counter already initialized, run counter_stop() first." << std::endl;
+        return;
+    }
+    
+    context->Flush();
+    context->Begin(p_disjoint_query);
+    context->End(p_start_query);
+    performance_counter_initialized = true;
+}
+
+double D3D11_Performance_Counter::counter_stop(ID3D11DeviceContext* context)
+{
+    if (!performance_counter_initialized) {
+        std::cerr << "Performance counter not initialized, run counter_start() first." << std::endl;
+        return 0.0;
+    }
+
+    context->Flush();
+    context->End(p_end_query);
+    context->End(p_disjoint_query);
+    performance_counter_initialized = false;
+    
+    // Get results
+    D3D11_QUERY_DATA_TIMESTAMP_DISJOINT disjoint_data = {};
+    UINT64 start_time = 0;
+    UINT64 end_time = 0;
+
+    // Wait for results
+    while (context->GetData(p_disjoint_query, &disjoint_data, sizeof(disjoint_data), 0) == S_FALSE) {}
+    while (context->GetData(p_start_query, &start_time, sizeof(start_time), 0) == S_FALSE) {}
+    while (context->GetData(p_end_query, &end_time, sizeof(end_time), 0) == S_FALSE) {}
+
+    // Calculate time in milliseconds
+    if (!disjoint_data.Disjoint) {
+        return (end_time - start_time) * 1000.0 / disjoint_data.Frequency; // Return time in milliseconds
+    }
+    else {  
+        std::cerr << "Timestamp discontinuity detected, results may be invalid." << std::endl;
+        return 0.0;
+    }
+
+    return 0.0;
+}
+
+void D3D11_Performance_Counter::release()
+{
+    if (p_start_query) p_start_query->Release();
+    if (p_end_query) p_end_query->Release();
+    if (p_disjoint_query) p_disjoint_query->Release();
+    p_start_query = nullptr;
+    p_end_query = nullptr;
+    p_disjoint_query = nullptr;
+}
+
 
 

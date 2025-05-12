@@ -44,3 +44,20 @@ struct D3D11_Constant_Buffer
 private:
     size_t blob_size;
 };
+
+struct D3D11_Performance_Counter
+{
+    void init(ID3D11Device* device);
+    void counter_start(ID3D11DeviceContext* context);
+    double counter_stop(ID3D11DeviceContext* context);
+    void release();
+    ~D3D11_Performance_Counter()
+    {
+        release();
+    }
+private:
+    ID3D11Query* p_start_query = nullptr;
+    ID3D11Query* p_end_query = nullptr;
+    ID3D11Query* p_disjoint_query = nullptr;
+    bool performance_counter_initialized = false;
+};
